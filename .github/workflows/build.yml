@@ -9,7 +9,8 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Build GitHub Browser APK
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
@@ -20,28 +21,52 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v5
-        with:
-          gradle-version: '8.7'
-
-      - name: Check project
+      - name: Check project structure
         run: |
-          echo "Project files:"
-          find . -maxdepth 4 -type f | sort
+          echo "=== Project ==="
+          pwd
+          echo ""
+          echo "=== Files ==="
+          find . -maxdepth 3 -type f | sort
+          echo ""
+          echo "=== Gradle files ==="
+          find . -maxdepth 3 \( -name "build.gradle" -o -name "build.gradle.kts" -o -name "settings.gradle" -o -name "settings.gradle.kts" -o -name "gradlew" \) -print
 
-      - name: Build APK
+      - name: Make Gradle wrapper executable
         run: |
-          gradle :app:assembleDebug --stacktrace --info
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            echo "Gradle wrapper found."
+          else
+            echo "ERROR: gradlew was not found!"
+            exit 1
+          fi
+
+      - name: Check Gradle
+        run: |
+          ./gradlew --version
+
+      - name: Clean project
+        run: |
+          ./gradlew clean --stacktrace
+
+      - name: Build Debug APK
+        run: |
+          ./gradlew :app:assembleDebug --stacktrace --no-daemon
 
       - name: Find APK
+        if: always()
         run: |
-          find app/build/outputs -type f -name "*.apk" -print
+          echo "=== APK files ==="
+          find . -type f -name "*.apk" -print
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: GitHubBrowser-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: GitHubBrowser-debug-apk
+          path: |
+            app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
